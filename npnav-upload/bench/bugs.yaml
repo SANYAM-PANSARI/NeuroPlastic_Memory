@@ -1,0 +1,79 @@
+# Each bug = a patch applied to a fresh copy of fake_system.
+# symptom: what the agent is told. root_cause: the intended fix location.
+# accepted_fixes: every legitimate fix (tests pass AND the change is a real fix), intended first.
+#   Scoring counts any of them as correct and reports which one the agent chose.
+#   Added 2026-11-22 after the first Antigravity run: raising AUTH_POOL_SIZE is a valid fix for
+#   payments-timeout-drift, and scoring it wrong was our mistake, not the agent's.
+- id: auth-pool-too-small
+  family: auth-pool
+  phase: learn
+  symptom: "Payments are failing: Payment TimeoutError after 2s (order_id=1)"
+  root_cause: "config.yaml#AUTH_POOL_SIZE"
+  accepted_fixes: ["config.yaml#AUTH_POOL_SIZE"]
+  patch:
+    file: config.yaml
+    find: "AUTH_POOL_SIZE: 8"
+    replace: "AUTH_POOL_SIZE: 2"
+
+- id: checkout-hangs-same-cause
+  family: auth-pool
+  phase: different-symptom-static-bridge
+  symptom: "Checkout hangs waiting for auth (order_id=2)"
+  root_cause: "config.yaml#AUTH_POOL_SIZE"
+  accepted_fixes: ["config.yaml#AUTH_POOL_SIZE"]
+  patch:
+    file: config.yaml
+    find: "AUTH_POOL_SIZE: 8"
+    replace: "AUTH_POOL_SIZE: 2"
+
+- id: amount-column-renamed
+  family: orders-schema
+  phase: learn
+  symptom: "Payments crash with IndexError: No item with that key (order_id=1)"
+  root_cause: "make_db.py#orders.amount_cents"
+  # fallback: change the code to read the renamed column instead of renaming it back
+  accepted_fixes: ["make_db.py#orders.amount_cents", "services/payments/client.py"]
+  patch:
+    file: make_db.py
+    find: "amount_cents INTEGER"
+    replace: "amount INTEGER"
+
+- id: receipts-stuck-no-static-bridge
+  family: auth-pool
+  phase: different-symptom-no-static-bridge
+  symptom: "Receipt emails are stuck in the queue (order_id=3)"
+  root_cause: "config.yaml#AUTH_POOL_SIZE"
+  accepted_fixes: ["config.yaml#AUTH_POOL_SIZE"]
+  patch:
+    file: config.yaml
+    find: "AUTH_POOL_SIZE: 8"
+    replace: "AUTH_POOL_SIZE: 2"
+
+- id: payments-timeout-drift
+  family: auth-pool
+  phase: same-symptom-two-valid-causes
+  # Same symptom as auth-pool-too-small; payments asks for more connections than the pool has.
+  # Lowering PAYMENT_CONCURRENCY (intended) or raising AUTH_POOL_SIZE (fallback) both fix it,
+  # so this bug does NOT test forgetting (the old answer still works). Relabelled 2026-11-22
+  # from "drift"; the forgetting test is payments-gateway-drift below.
+  symptom: "Payments are failing: Payment TimeoutError after 2s (order_id=1)"
+  root_cause: "config.yaml#PAYMENT_CONCURRENCY"
+  accepted_fixes: ["config.yaml#PAYMENT_CONCURRENCY", "config.yaml#AUTH_POOL_SIZE"]
+  patch:
+    file: config.yaml
+    find: "PAYMENT_CONCURRENCY: 4"
+    replace: "PAYMENT_CONCURRENCY: 12"
+
+- id: payments-gateway-drift
+  family: auth-pool
+  phase: drift
+  # Added 2026-11-22, BEFORE any run that uses it, to test forgetting properly.
+  # Same symptom as auth-pool-too-small, but the cause is the gateway timeout. Raising
+  # AUTH_POOL_SIZE cannot fix it, so a memory that still points at the pool now misleads.
+  symptom: "Payments are failing: Payment TimeoutError after 0.1s (order_id=1)"
+  root_cause: "config.yaml#PAYMENT_GATEWAY_TIMEOUT_MS"
+  accepted_fixes: ["config.yaml#PAYMENT_GATEWAY_TIMEOUT_MS"]
+  patch:
+    file: config.yaml
+    find: "PAYMENT_GATEWAY_TIMEOUT_MS: 1000"
+    replace: "PAYMENT_GATEWAY_TIMEOUT_MS: 100"

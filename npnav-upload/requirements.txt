@@ -1,0 +1,5 @@
+pyyaml
+pytest
+ollama
+mcp
+sentence-transformers   # embedding entry step; optional, falls back to word overlap

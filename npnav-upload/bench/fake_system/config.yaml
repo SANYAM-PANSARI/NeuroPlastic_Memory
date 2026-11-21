@@ -1,0 +1,13 @@
+auth:
+  AUTH_POOL_SIZE: 8
+  AUTH_TIMEOUT_S: 2
+payments:
+  PAYMENT_CONCURRENCY: 4
+  PAYMENT_GATEWAY_TIMEOUT_MS: 1000
+checkout:
+  CHECKOUT_CONCURRENCY: 3
+notify:
+  AUTH_BACKEND: services.auth.auth_service
+  NOTIFY_CONCURRENCY: 3
+db:
+  DB_PATH: data/orders.db
